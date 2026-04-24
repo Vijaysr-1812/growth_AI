@@ -6,7 +6,7 @@ import { useSession, signOut } from "next-auth/react";
 import Link from "next/link";
 import { 
   Search, Bell, User, Sparkles, Clock, 
-  Activity, LogOut, Home, Newspaper
+  Activity, LogOut, Home, Newspaper, Briefcase, ChevronRight, X, ArrowLeft
 } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -15,35 +15,26 @@ const AdvancedRealTimeChart = dynamic(
   { ssr: false }
 );
 
-// 1. Create a clean type for the callback data
-interface JoyrideData {
-  status: "finished" | "skipped" | string;
-  [key: string]: unknown;
-}
-
-// 2. Create our own strict type for the component props
-interface CustomJoyrideProps {
-  steps: Array<{ target: string; content: string; disableBeacon?: boolean }>;
-  run: boolean;
-  continuous: boolean;
-  showSkipButton: boolean;
-  showProgress: boolean;
-  styles: unknown;
-  callback: (data: JoyrideData) => void;
-}
-
 export default function Dashboard() {
   const { data: session } = useSession();
   
+  // GLOBAL DASHBOARD TABS
+  const [assetType, setAssetType] = useState<"Stock" | "SIP">("Stock");
+
   // UI State
   const [horizon, setHorizon] = useState<"Short-term" | "Long-term">("Long-term");
   const [searchQuery, setSearchQuery] = useState("");
   const [showUserMenu, setShowUserMenu] = useState(false);
   
-  // Guided Tour States
-  const [runTour, setRunTour] = useState(false);
-  // THE FIX: We hold the dynamically imported component safely in state
-  const [JoyrideComponent, setJoyrideComponent] = useState<React.ComponentType<CustomJoyrideProps> | null>(null);
+  // Investment Strategy State
+  const [investmentType, setInvestmentType] = useState<"Monthly SIP" | "One-Time">("Monthly SIP");
+  const [amount, setAmount] = useState("");
+  
+  // NEW: State to toggle between Strategy Input and AI Results
+  const [showAiResults, setShowAiResults] = useState(false);
+  
+  // CUSTOM GUIDED TOUR STATE
+  const [tourStep, setTourStep] = useState<number>(0); 
 
   // LIVE SEARCH STATE
   const [searchResults, setSearchResults] = useState<{symbol: string, name: string}[]>([]);
@@ -76,31 +67,45 @@ export default function Dashboard() {
     fetchWatchlist();
   }, []);
 
-  // 2. Trigger Guided Tour if first time AND Manually load the component
+  // 2. CUSTOM TOUR LOGIC
   useEffect(() => {
-    // Manually import the library bypassing Next.js dynamic routing bugs
-    import("react-joyride").then((mod) => {
-      // Safely extract the component regardless of how Turbopack bundled it
-      const m = mod as Record<string, unknown>;
-      const Component = (m.default || m.Joyride || m) as React.ComponentType<CustomJoyrideProps>;
-      
-      // Save it to state (wrapped in a callback so React doesn't auto-execute the function)
-      setJoyrideComponent(() => Component);
-    }).catch(err => console.error("Failed to load Joyride:", err));
-
-    const hasSeenTutorial = localStorage.getItem("nexus_tutorial_completed");
+    const hasSeenTutorial = localStorage.getItem("nexus_first_login_tour");
     if (!hasSeenTutorial) {
-      setTimeout(() => setRunTour(true), 1000); 
+      setTimeout(() => setTourStep(1), 1500); 
     }
   }, []);
 
-  // 3. LIVE SEARCH EFFECT (Triggers as you type)
+  const handleNextTourStep = () => {
+    if (tourStep === 3) {
+      localStorage.setItem("nexus_first_login_tour", "completed");
+      setTourStep(0);
+    } else {
+      setTourStep(prev => prev + 1);
+    }
+  };
+
+  const handleSkipTour = () => {
+    localStorage.setItem("nexus_first_login_tour", "completed");
+    setTourStep(0);
+  };
+
+  // 3. Clear Screen & Reset UI when switching Global Tabs
+  useEffect(() => {
+    setActiveTicker("");
+    setAiAnalysis("");
+    setSearchQuery("");
+    setSearchResults([]);
+    setAmount("");
+    setShowAiResults(false); // Reset back to strategy view
+  }, [assetType]);
+
+  // 4. LIVE SEARCH EFFECT
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
       if (searchQuery.trim().length > 1) {
         setIsSearching(true);
         try {
-          const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}`);
+          const res = await fetch(`/api/search?q=${encodeURIComponent(searchQuery)}&type=${assetType}`);
           const data = await res.json();
           setSearchResults(data.results || []);
         } catch (error) {
@@ -114,12 +119,10 @@ export default function Dashboard() {
     }, 300);
 
     return () => clearTimeout(delayDebounceFn);
-  }, [searchQuery]);
+  }, [searchQuery, assetType]);
 
-  // 4. Save selected ticker to DB
- // 3. Save selected ticker to DB
+  // 5. Save selected ticker to DB
   const handleSelectTicker = async (symbol: string) => {
-    // Smart converter: Yahoo Finance format -> TradingView format
     let formattedSymbol = symbol;
     if (symbol.endsWith('.NS')) {
       formattedSymbol = `NSE:${symbol.replace('.NS', '')}`;
@@ -138,19 +141,22 @@ export default function Dashboard() {
       if (data.tickers) {
         setTickers(data.tickers);
         setActiveTicker(formattedSymbol);
-        
         setSearchQuery("");
         setSearchResults([]);
         setAiAnalysis(""); 
+        setShowAiResults(false); // Reset back to strategy view on new ticker
       }
     } catch (error) {
       console.error("Failed to add ticker", error);
     }
   };
-  // 5. Trigger AI
+
+  // 6. Trigger AI
   const handleGenerateAnalysis = async () => {
     if (!activeTicker) return;
     
+    // Switch the UI to show the AI Results Box immediately
+    setShowAiResults(true);
     setIsAnalyzing(true);
     setAiAnalysis(""); 
 
@@ -158,7 +164,7 @@ export default function Dashboard() {
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ticker: activeTicker, horizon }),
+        body: JSON.stringify({ ticker: activeTicker, horizon, amount, assetType, investmentType }), 
       });
       
       const data = await res.json();
@@ -176,54 +182,75 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] text-white font-sans flex flex-col relative">
+    <div className="min-h-screen bg-[#050505] text-white font-sans flex flex-col relative overflow-x-hidden">
       
-      {/* Conditionally render the Tour ONLY when the component is fully loaded */}
-      {JoyrideComponent && (
-        <JoyrideComponent
-          steps={[
-            {
-              target: '.tour-search',
-              content: 'Welcome to Nexus.AI! Start by searching for your favorite companies or tickers here.',
-              disableBeacon: true,
-            },
-            {
-              target: '.tour-horizon',
-              content: 'Are you day-trading or long-term investing? Set your time horizon to change how the AI analyzes data.',
-            },
-            {
-              target: '.tour-analyze-btn',
-              content: 'Click this button to feed global news and market data directly into Gemini for instant insights.',
-            }
-          ]}
-          run={runTour}
-          continuous={true}
-          showSkipButton={true}
-          showProgress={true}
-          styles={{
-            options: {
-              primaryColor: '#3b82f6',
-              backgroundColor: '#0a0a0a',
-              textColor: '#ffffff',
-              arrowColor: '#0a0a0a',
-            }
-          }}
-          callback={(data: JoyrideData) => {
-            const { status } = data;
-            if (status === "finished" || status === "skipped") {
-              localStorage.setItem("nexus_tutorial_completed", "true");
-              setRunTour(false);
-            }
-          }}
-        />
-      )}
+      {/* =========================================
+          CUSTOM GUIDED TOUR OVERLAY & TOOLTIP
+      ========================================= */}
+      <AnimatePresence>
+        {tourStep > 0 && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm pointer-events-auto flex items-end justify-center pb-24"
+          >
+            <motion.div 
+              initial={{ y: 50, scale: 0.9 }}
+              animate={{ y: 0, scale: 1 }}
+              exit={{ y: 50, scale: 0.9 }}
+              className="bg-[#0a0a0a] border border-blue-500/50 shadow-[0_0_40px_rgba(59,130,246,0.3)] p-6 rounded-2xl max-w-md w-full relative z-50"
+            >
+              <button onClick={handleSkipTour} className="absolute top-4 right-4 text-gray-500 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+              
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-400">
+                  {tourStep === 1 && <Search className="w-5 h-5" />}
+                  {tourStep === 2 && <Briefcase className="w-5 h-5" />}
+                  {tourStep === 3 && <Sparkles className="w-5 h-5" />}
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">
+                    {tourStep === 1 && "Smart Search"}
+                    {tourStep === 2 && "Tailor Your Strategy"}
+                    {tourStep === 3 && "Unleash the AI"}
+                  </h3>
+                  <div className="flex space-x-1 mt-1">
+                    {[1, 2, 3].map(step => (
+                      <div key={step} className={`h-1.5 w-6 rounded-full ${step === tourStep ? 'bg-blue-500' : 'bg-white/10'}`} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+              
+              <p className="text-gray-400 text-sm leading-relaxed mb-6">
+                {tourStep === 1 && "Welcome to Growth.AI! 🚀 Search for your favorite Stocks, ETFs, or Mutual Funds up here to pull real-time charts and data."}
+                {tourStep === 2 && "Are you SIPing or trading? 💼 Set your investment frequency, amount, and time horizon so the AI knows exactly how to advise you."}
+                {tourStep === 3 && "The magic button. 🧠 Click here to feed global news and market data directly into Gemini for an instant, brutally honest verdict."}
+              </p>
 
-      <header className="border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0 z-50">
+              <div className="flex justify-between items-center">
+                <button onClick={handleSkipTour} className="text-sm text-gray-500 hover:text-white transition-colors font-medium">
+                  Skip Tour
+                </button>
+                <button onClick={handleNextTourStep} className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2 rounded-lg text-sm font-bold flex items-center transition-colors">
+                  {tourStep === 3 ? "Get Started" : "Next"} <ChevronRight className="w-4 h-4 ml-1" />
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* HEADER */}
+      <header className="border-b border-white/5 bg-black/50 backdrop-blur-md sticky top-0 z-30">
         <div className="flex items-center justify-between px-6 py-4">
           
           <div className="flex items-center space-x-8">
             <Link href="/" className="text-xl font-bold tracking-tighter hover:opacity-80 transition-opacity">
-              Nexus<span className="text-blue-500">.AI</span>
+              Growth<span className="text-blue-500">.AI</span>
             </Link>
             
             <nav className="hidden md:flex items-center space-x-6 text-sm font-medium">
@@ -241,15 +268,15 @@ export default function Dashboard() {
           
           <div className="flex items-center space-x-6">
             
-            <div className="relative group hidden sm:block z-50 tour-search">
+            <div className={`relative hidden sm:block transition-all duration-500 ${tourStep === 1 ? 'z-50 ring-4 ring-blue-500 rounded-full bg-black/80 shadow-[0_0_30px_rgba(59,130,246,0.3)]' : 'z-30'}`}>
               <div className="relative">
                 <Search className={`w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${isSearching ? 'text-blue-400 animate-pulse' : 'text-gray-400 group-focus-within:text-blue-400'}`} />
                 <input 
                   type="text" 
-                  placeholder="Search company or ticker..." 
+                  placeholder={`Search ${assetType === "Stock" ? "Stocks & ETFs" : "Mutual Funds"}...`} 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all w-72"
+                  className="bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 focus:bg-white/10 transition-all w-80"
                 />
               </div>
 
@@ -276,12 +303,12 @@ export default function Dashboard() {
               </AnimatePresence>
             </div>
             
-            <button className="text-gray-400 hover:text-white transition-colors relative">
+            <button className="text-gray-400 hover:text-white transition-colors relative z-30">
               <Bell className="w-5 h-5" />
               <span className="absolute top-0 right-0 w-2 h-2 bg-blue-500 rounded-full"></span>
             </button>
 
-            <div className="relative">
+            <div className="relative z-30">
               <div 
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="w-8 h-8 rounded-full bg-linear-to-tr from-blue-500 to-purple-500 flex items-center justify-center cursor-pointer hover:ring-2 ring-blue-500/50 transition-all overflow-hidden"
@@ -329,155 +356,268 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="flex items-end justify-between"
+      <main className="flex-1 p-6 md:p-8 max-w-7xl mx-auto w-full flex flex-col z-10">
+        
+        {/* GLOBAL TABS */}
+        <div className="flex space-x-8 mb-8 border-b border-white/10">
+          <button 
+            onClick={() => setAssetType("Stock")}
+            className={`pb-4 text-lg font-medium border-b-2 transition-all ${
+              assetType === "Stock" 
+              ? "border-blue-500 text-blue-400" 
+              : "border-transparent text-gray-500 hover:text-gray-300"
+            }`}
           >
-            <div>
-              <h1 className="text-3xl font-light mb-1">{activeTicker || "Welcome"}</h1>
-              <div className="text-gray-400 flex flex-wrap items-center gap-2 mt-2">
-                {tickers.map((t) => (
-                  <button 
-                    key={t}
-                    onClick={() => {
-                      setActiveTicker(t);
-                      setAiAnalysis(""); 
-                    }}
-                    className={`px-3 py-1 rounded-md text-xs font-medium border transition-colors ${
-                      activeTicker === t 
-                      ? 'bg-blue-500/20 border-blue-500/50 text-blue-400' 
-                      : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    {t}
-                  </button>
-                ))}
-                {tickers.length === 0 && (
-                  <span className="text-sm text-gray-500 italic">No tickers saved yet. Use the search bar!</span>
-                )}
-              </div>
-            </div>
-            <div className="text-right hidden sm:block">
-              <div className="text-3xl font-medium">Live Market Data</div>
-              <div className="text-green-400 flex items-center justify-end text-sm mt-1 font-medium">
-                 Provided by TradingView
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-4 h-150 flex flex-col relative overflow-hidden shadow-lg z-0"
+            Stocks & ETFs
+          </button>
+          <button 
+            onClick={() => setAssetType("SIP")}
+            className={`pb-4 text-lg font-medium border-b-2 transition-all ${
+              assetType === "SIP" 
+              ? "border-purple-500 text-purple-400" 
+              : "border-transparent text-gray-500 hover:text-gray-300"
+            }`}
           >
-            {activeTicker ? (
-              <div className="w-full h-full rounded-xl overflow-hidden pointer-events-auto">
-                <AdvancedRealTimeChart 
-                  symbol={activeTicker} // <--- CHANGE THIS LINE
-                  theme="dark"
-                  autosize
-                  hide_top_toolbar={false}
-                  hide_legend={false}
-                  save_image={false}
-                  backgroundColor="#0a0a0a"
-                  allow_symbol_change={false}
-                />
-              </div>
-            ) : (
-              <div className="flex-1 border border-dashed border-white/10 rounded-xl flex items-center justify-center bg-white/1">
-                <p className="text-gray-500 flex flex-col items-center">
-                  <Activity className="w-10 h-10 mb-3 opacity-30" />
-                  Select a ticker to view live market data
-                </p>
-              </div>
-            )}
-          </motion.div>
+            Mutual Funds
+          </button>
         </div>
 
-        <motion.div 
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.2 }}
-          className="space-y-6 relative z-0"
-        >
-          <div className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-6 shadow-lg">
-            <h3 className="text-lg font-medium mb-4 flex items-center">
-              <Clock className="w-5 h-5 mr-2 text-purple-400" />
-              Investment Horizon
-            </h3>
-            
-            <div className="bg-black border border-white/10 p-1 rounded-lg flex relative tour-horizon">
-              <motion.div 
-                className="absolute inset-y-1 w-[calc(50%-4px)] bg-white/10 rounded-md shadow-sm"
-                animate={{ left: horizon === "Short-term" ? "4px" : "calc(50%)" }}
-                transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              />
-              <button 
-                onClick={() => setHorizon("Short-term")}
-                className={`flex-1 py-2 text-sm font-medium z-10 transition-colors ${horizon === "Short-term" ? "text-white" : "text-gray-500"}`}
-              >
-                Short-term
-              </button>
-              <button 
-                onClick={() => setHorizon("Long-term")}
-                className={`flex-1 py-2 text-sm font-medium z-10 transition-colors ${horizon === "Long-term" ? "text-white" : "text-gray-500"}`}
-              >
-                Long-term
-              </button>
-            </div>
-            
-            <button 
-              onClick={handleGenerateAnalysis}
-              disabled={isAnalyzing || !activeTicker}
-              className="w-full mt-6 bg-white text-black py-3 rounded-lg text-sm font-bold hover:bg-gray-200 transition-colors flex items-center justify-center group shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed tour-analyze-btn"
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+          
+          {/* LEFT COLUMN: CHART */}
+          <div className="lg:col-span-2 space-y-8">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex items-end justify-between"
             >
-              {isAnalyzing ? (
-                <span className="flex items-center">
-                  <Activity className="w-4 h-4 mr-2 animate-spin text-blue-600" /> Analyzing...
-                </span>
+              <div>
+                <h1 className="text-3xl font-light mb-1">
+                  {activeTicker || (assetType === "Stock" ? "Explore Stocks" : "Explore Funds")}
+                </h1>
+                <div className="text-gray-400 flex flex-wrap items-center gap-2 mt-2">
+                  {tickers.map((t) => (
+                    <button 
+                      key={t}
+                      onClick={() => {
+                        setActiveTicker(t);
+                        setAiAnalysis(""); 
+                        setShowAiResults(false); // Reset to strategy view
+                      }}
+                      className={`px-3 py-1 rounded-md text-xs font-medium border transition-colors ${
+                        activeTicker === t 
+                        ? 'bg-blue-500/20 border-blue-500/50 text-blue-400' 
+                        : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10'
+                      }`}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                  {tickers.length === 0 && (
+                    <span className="text-sm text-gray-500 italic">Watchlist is empty. Search above!</span>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-[#0a0a0a] border border-white/5 rounded-2xl p-4 h-137.5 flex flex-col relative overflow-hidden shadow-lg z-0"
+            >
+              {activeTicker ? (
+                <div className="w-full h-full rounded-xl overflow-hidden pointer-events-auto">
+                  <AdvancedRealTimeChart 
+                    symbol={activeTicker} 
+                    theme="dark"
+                    autosize
+                    style={assetType === "SIP" ? "3" : "1"} 
+                    interval={assetType === "SIP" ? "D" : "D"} 
+                    hide_top_toolbar={false}
+                    hide_legend={false}
+                    save_image={false}
+                    backgroundColor="#0a0a0a"
+                    allow_symbol_change={false}
+                  />
+                  {assetType === "SIP" && (
+                    <div className="absolute bottom-4 left-4 bg-black/80 backdrop-blur text-xs text-gray-400 px-3 py-1 rounded-full border border-white/10">
+                      Note: Indian Mutual Fund NAV charts may have limited intra-day data on TradingView.
+                    </div>
+                  )}
+                </div>
               ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform text-blue-600" />
-                  Analyze {activeTicker || "Ticker"} with AI
-                </>
+                <div className="flex-1 border border-dashed border-white/10 rounded-xl flex items-center justify-center bg-white/1">
+                  <p className="text-gray-500 flex flex-col items-center text-sm">
+                    <Activity className="w-8 h-8 mb-3 opacity-30" />
+                    Search for a {assetType === "Stock" ? "stock or ETF" : "mutual fund"} to view live data
+                  </p>
+                </div>
               )}
-            </button>
+            </motion.div>
           </div>
 
-          <div className="relative group">
-            <div className="absolute -inset-0.5 bg-linear-to-r from-blue-500 to-purple-600 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-            <div className="relative bg-black border border-white/10 rounded-2xl p-6 h-100 flex flex-col">
-              <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/10">
-                <h3 className="text-lg font-medium flex items-center text-transparent bg-clip-text bg-linear-to-r from-blue-400 to-purple-400">
-                  <Sparkles className="w-5 h-5 mr-2 text-blue-400" />
-                  Gemini Insights
-                </h3>
-                <span className="text-xs bg-white/5 px-2 py-1 rounded text-gray-400 border border-white/10">
-                  {horizon}
-                </span>
-              </div>
+          {/* RIGHT COLUMN: DYNAMIC WIDGET (Strategy vs. Results) */}
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.2 }}
+            className="relative h-full"
+          >
+            <AnimatePresence mode="wait">
               
-              <div className="flex-1 overflow-y-auto pr-2 text-sm text-gray-300 leading-relaxed space-y-4 custom-scrollbar">
-                {isAnalyzing ? (
-                  <div className="flex flex-col items-center justify-center h-full text-blue-400/80">
-                    <Activity className="w-8 h-8 animate-spin mb-4" />
-                    <p className="animate-pulse">Gemini is analyzing market data...</p>
+              {/* STATE 1: STRATEGY INPUT FORM */}
+              {!showAiResults ? (
+                <motion.div 
+                  key="strategy-form"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className={`bg-[#0a0a0a] border rounded-2xl p-6 shadow-lg ${tourStep === 2 ? 'z-50 relative ring-4 ring-blue-500 border-transparent shadow-[0_0_30px_rgba(59,130,246,0.3)]' : 'z-0 border-white/5'}`}
+                >
+                  <div className="flex items-center justify-between mb-6 border-b border-white/10 pb-4">
+                    <h3 className="text-lg font-medium flex items-center">
+                      <Briefcase className={`w-5 h-5 mr-2 ${assetType === 'Stock' ? 'text-blue-400' : 'text-purple-400'}`} />
+                      Investment Strategy
+                    </h3>
                   </div>
-                ) : aiAnalysis ? (
-                  <div className="space-y-4 whitespace-pre-wrap">{aiAnalysis}</div>
-                ) : (
-                  <p className="text-blue-400/80 italic mt-4 animate-pulse">
-                    Waiting for user to trigger full analysis for {activeTicker || "a ticker"}...
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        </motion.div>
+
+                  <AnimatePresence>
+                    {assetType === "SIP" && (
+                      <motion.div 
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        className="overflow-hidden mb-6"
+                      >
+                        <h3 className="text-sm font-medium mb-3 text-gray-400">Investment Frequency</h3>
+                        <div className="bg-black border border-white/10 p-1 rounded-lg flex relative">
+                          <motion.div 
+                            className="absolute inset-y-1 w-[calc(50%-4px)] bg-purple-500/20 border border-purple-500/50 rounded-md shadow-sm"
+                            animate={{ left: investmentType === "Monthly SIP" ? "4px" : "calc(50%)" }}
+                            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                          />
+                          <button 
+                            onClick={() => setInvestmentType("Monthly SIP")}
+                            className={`flex-1 py-2 text-xs font-medium z-10 transition-colors ${investmentType === "Monthly SIP" ? "text-purple-400" : "text-gray-500"}`}
+                          >
+                            Monthly SIP
+                          </button>
+                          <button 
+                            onClick={() => setInvestmentType("One-Time")}
+                            className={`flex-1 py-2 text-xs font-medium z-10 transition-colors ${investmentType === "One-Time" ? "text-purple-400" : "text-gray-500"}`}
+                          >
+                            One-Time (Lump Sum)
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+
+                  <h3 className="text-sm font-medium mb-3 text-gray-400">
+                    {assetType === "Stock" 
+                      ? "Planned Investment Amount" 
+                      : investmentType === "Monthly SIP" ? "Monthly SIP Amount" : "Lump Sum Amount"}
+                  </h3>
+                  <div className="relative mb-6">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">₹</span>
+                    <input 
+                      type="number" 
+                      placeholder="e.g. 10000"
+                      value={amount}
+                      onChange={(e) => setAmount(e.target.value)}
+                      className="w-full bg-black border border-white/10 rounded-lg py-2.5 pl-8 pr-4 text-sm text-white focus:outline-none focus:border-blue-500/50 transition-colors"
+                    />
+                  </div>
+
+                  <h3 className="text-sm font-medium mb-3 text-gray-400">Investment Horizon</h3>
+                  <div className="bg-black border border-white/10 p-1 rounded-lg flex relative">
+                    <motion.div 
+                      className="absolute inset-y-1 w-[calc(50%-4px)] bg-white/10 rounded-md shadow-sm"
+                      animate={{ left: horizon === "Short-term" ? "4px" : "calc(50%)" }}
+                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
+                    />
+                    <button 
+                      onClick={() => setHorizon("Short-term")}
+                      className={`flex-1 py-2 text-xs font-medium z-10 transition-colors ${horizon === "Short-term" ? "text-white" : "text-gray-500"}`}
+                    >
+                      Short-term (&lt; 1 yr)
+                    </button>
+                    <button 
+                      onClick={() => setHorizon("Long-term")}
+                      className={`flex-1 py-2 text-xs font-medium z-10 transition-colors ${horizon === "Long-term" ? "text-white" : "text-gray-500"}`}
+                    >
+                      Long-term (3+ yrs)
+                    </button>
+                  </div>
+                  
+                  <button 
+                    onClick={handleGenerateAnalysis}
+                    disabled={!activeTicker}
+                    className={`w-full mt-8 text-black py-3 rounded-lg text-sm font-bold transition-all duration-500 flex items-center justify-center group disabled:opacity-50 disabled:cursor-not-allowed
+                      ${tourStep === 3 ? 'z-50 relative ring-4 ring-blue-500 shadow-[0_0_30px_rgba(59,130,246,0.5)] bg-white' : ''}
+                      ${assetType === 'Stock' && tourStep !== 3 ? 'bg-white hover:bg-gray-200 shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)]' : ''}
+                      ${assetType === 'SIP' && tourStep !== 3 ? 'bg-purple-400 hover:bg-purple-300 shadow-[0_0_20px_rgba(192,132,252,0.1)] hover:shadow-[0_0_25px_rgba(192,132,252,0.2)]' : ''}`}
+                  >
+                    <Sparkles className="w-4 h-4 mr-2 group-hover:rotate-12 transition-transform text-black/70" />
+                    Analyze {assetType === "Stock" ? "Stock" : "Fund"} with AI
+                  </button>
+                </motion.div>
+              ) 
+              
+              /* STATE 2: AI RESULTS BOX */
+              : (
+                <motion.div 
+                  key="ai-results"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ duration: 0.3 }}
+                  className="relative group h-full flex flex-col"
+                >
+                  <div className={`absolute -inset-0.5 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000 ${assetType === 'Stock' ? 'bg-linear-to-r from-blue-500 to-indigo-600' : 'bg-linear-to-r from-purple-500 to-pink-600'}`}></div>
+                  <div className="relative bg-black border border-white/10 rounded-2xl p-6 flex-1 flex flex-col min-h-[500px] shadow-2xl">
+                    
+                    <div className="flex items-center justify-between mb-4 pb-4 border-b border-white/10">
+                      <h3 className={`text-lg font-medium flex items-center text-transparent bg-clip-text ${assetType === 'Stock' ? 'bg-linear-to-r from-blue-400 to-indigo-400' : 'bg-linear-to-r from-purple-400 to-pink-400'}`}>
+                        <Sparkles className={`w-5 h-5 mr-2 ${assetType === 'Stock' ? 'text-blue-400' : 'text-purple-400'}`} />
+                        Growth.AI Advisor
+                      </h3>
+                      <span className="text-[10px] uppercase tracking-wider bg-white/5 px-2 py-1 rounded text-gray-400 border border-white/10">
+                        {horizon}
+                      </span>
+                    </div>
+                    
+                    <div className="flex-1 overflow-y-auto pr-2 pb-4 text-sm text-gray-300 leading-relaxed space-y-4 custom-scrollbar">
+                      {isAnalyzing ? (
+                        <div className={`flex flex-col items-center justify-center h-full ${assetType === 'Stock' ? 'text-blue-400/80' : 'text-purple-400/80'}`}>
+                          <Activity className="w-8 h-8 animate-spin mb-4" />
+                          <p className="animate-pulse">Crunching market data & news...</p>
+                        </div>
+                      ) : aiAnalysis ? (
+                        <div className="space-y-4 whitespace-pre-wrap">{aiAnalysis}</div>
+                      ) : null}
+                    </div>
+
+                    {/* Back Button to return to Strategy Input */}
+                    <div className="pt-4 border-t border-white/10 mt-auto">
+                      <button 
+                        onClick={() => setShowAiResults(false)}
+                        className="flex items-center text-sm font-medium text-gray-400 hover:text-white transition-colors group"
+                      >
+                        <ArrowLeft className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform" />
+                        Edit Strategy
+                      </button>
+                    </div>
+
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+
+        </div>
       </main>
     </div>
   );

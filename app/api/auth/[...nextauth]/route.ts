@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import CredentialsProvider from "next-auth/providers/credentials";
-import { prisma } from "../../../../lib/prisma"; // Adjust path if needed
+import { prisma } from "../../../../lib/prisma"; 
 import bcrypt from "bcryptjs";
 
 const handler = NextAuth({
@@ -30,7 +30,13 @@ const handler = NextAuth({
           throw new Error("User not found");
         }
 
-        // 2. Verify password with bcrypt
+        // NEW: 2. Check if they have verified their email
+        // We only enforce this for users who signed up with credentials (password exists)
+        if (!user.emailVerified) {
+          throw new Error("Access Denied: Please check your email and verify your account first.");
+        }
+
+        // 3. Verify password with bcrypt
         const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
 
         if (!isPasswordValid) {
@@ -50,7 +56,7 @@ const handler = NextAuth({
     strategy: "jwt",
   },
   pages: {
-    signIn: '/login', // Tells NextAuth to use your custom login page
+    signIn: '/login', 
   }
 });
 

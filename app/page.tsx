@@ -5,14 +5,13 @@ import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
-  ArrowRight, Search, TrendingUp, BrainCircuit, Clock, 
-  User, Newspaper, LogOut, Activity 
+  ArrowRight, TrendingUp, User, LogOut, Activity 
 } from "lucide-react";
 
 export default function Home() {
   const { data: session, status } = useSession();
   
-  // NEW: State to control the dropdown menu
+  // State to control the dropdown menu
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   return (
@@ -65,12 +64,13 @@ export default function Home() {
           className="relative z-10 flex justify-between items-center px-8 py-6 md:px-16"
         >
           <div className="text-2xl font-bold tracking-tighter">
-            Nexus<span className="text-blue-500">.AI</span>
+            Growth<span className="text-blue-500">.AI</span>
           </div>
           
           <div className="hidden md:flex space-x-8 text-sm text-gray-300">
-            <a href="#" className="hover:text-white transition-colors">Home</a>
-            <a href="#features" className="hover:text-white transition-colors">Platform</a>
+            <Link href="/" className="hover:text-white transition-colors">Home</Link>
+            {/* Changed this link to point to your new About Us page! */}
+            <Link href="/about" className="hover:text-white transition-colors">About Us</Link>
             <Link href="/news" className="hover:text-white transition-colors">Market News</Link>
           </div>
 
@@ -80,7 +80,6 @@ export default function Home() {
               <div className="w-24 h-10 bg-white/5 animate-pulse rounded-sm border border-white/10"></div>
             ) : session ? (
               <div className="relative">
-                {/* CHANGED: Made this a button that toggles the dropdown instead of a Link */}
                 <button 
                   onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center space-x-3 border border-white/20 pl-2 pr-4 py-1.5 hover:bg-white/10 transition-all duration-300 rounded-full bg-black/50 backdrop-blur-md"
@@ -182,77 +181,6 @@ export default function Home() {
             94% <TrendingUp className="w-6 h-6 text-blue-400 mb-1" />
           </div>
         </motion.div>
-      </div>
-
-      {/* ========================================
-        PROJECT FEATURES SECTION
-        ========================================
-      */}
-      <div id="features" className="bg-[#0a0a0a] py-32 px-8 md:px-16 border-t border-white/5 relative z-10">
-        <div className="max-w-6xl mx-auto">
-          <motion.div 
-            initial={{ opacity: 0, y: 40 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-100px" }}
-            transition={{ duration: 0.8 }}
-            className="mb-20"
-          >
-            <h2 className="text-3xl md:text-5xl font-serif mb-4">Your Personal Financial Advisor</h2>
-            <p className="text-gray-400 max-w-2xl text-lg">
-              We process real-time market data, global news, and macroeconomic trends so you dont have to.
-            </p>
-          </motion.div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            <motion.div 
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.6, delay: 0.1 }}
-              className="bg-black border border-white/10 p-8 rounded-xl hover:border-blue-500/50 transition-colors group"
-            >
-              <div className="bg-blue-500/10 w-12 h-12 rounded-full flex items-center justify-center mb-6 text-blue-400 group-hover:scale-110 transition-transform">
-                <Search className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-medium mb-3">Custom Watchlists</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Search and bundle the specific stocks you are interested in. We instantly aggregate the latest news and price actions for your selection.
-              </p>
-            </motion.div>
-
-            <motion.div 
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.6, delay: 0.2 }}
-              className="bg-black border border-white/10 p-8 rounded-xl hover:border-purple-500/50 transition-colors group"
-            >
-              <div className="bg-purple-500/10 w-12 h-12 rounded-full flex items-center justify-center mb-6 text-purple-400 group-hover:scale-110 transition-transform">
-                <Clock className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-medium mb-3">Time Horizon Context</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                Tell us if you are day-trading or planning for retirement. Our analysis shifts completely based on your short-term or long-term goals.
-              </p>
-            </motion.div>
-
-            <motion.div 
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true, margin: "-50px" }}
-              transition={{ duration: 0.6, delay: 0.3 }}
-              className="bg-black border border-white/10 p-8 rounded-xl hover:border-green-500/50 transition-colors group"
-            >
-              <div className="bg-green-500/10 w-12 h-12 rounded-full flex items-center justify-center mb-6 text-green-400 group-hover:scale-110 transition-transform">
-                <BrainCircuit className="w-6 h-6" />
-              </div>
-              <h3 className="text-xl font-medium mb-3">Gemini AI Synthesis</h3>
-              <p className="text-gray-400 text-sm leading-relaxed">
-                We feed wars, recessions, and real-time earnings reports into our AI agent to provide you with clear, plain-English investment suggestions.
-              </p>
-            </motion.div>
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -40,16 +40,19 @@ model Session {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  emailVerified DateTime?
-  image         String?
-  password      String?   // Added for users who sign up with email instead of Google
+  id                String    @id @default(cuid())
+  name              String?
+  email             String?   @unique
+  emailVerified     DateTime?
+  image             String?
+  password          String?   // Added for users who sign up with email instead of Google
   
-  accounts      Account[]
-  sessions      Session[]
-  watchlists    Watchlist[] // Links the user to their stock watchlists
+  // NEW: Added for our custom email verification flow
+  verificationToken String?   
+
+  accounts          Account[]
+  sessions          Session[]
+  watchlists        Watchlist[] // Links the user to their stock watchlists
 }
 
 model VerificationToken {

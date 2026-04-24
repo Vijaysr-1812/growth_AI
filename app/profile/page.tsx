@@ -70,7 +70,7 @@ export default function ProfilePage() {
               onClick={() => signOut({ callbackUrl: '/' })}
               className="w-full md:w-auto px-6 py-3 bg-red-500/10 text-red-400 font-medium rounded-xl hover:bg-red-500/20 transition-colors flex items-center justify-center"
             >
-              <LogOut className="w-4 h-4 mr-2" /> Sign Out from Nexus.AI
+              <LogOut className="w-4 h-4 mr-2" /> Sign Out from Growth.AI
             </button>
           </div>
         </motion.div>

@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "../../../lib/prisma";
 import bcrypt from "bcryptjs";
 import { Resend } from "resend";
+import crypto from "crypto"; // NEW: Built-in Node module to generate secure tokens
 
-// Initialize the email client
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 export async function POST(req: Request) {
@@ -14,7 +14,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
-    // 1. Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email },
     });
@@ -23,50 +22,55 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "User already exists" }, { status: 400 });
     }
 
-    // 2. Securely hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // NEW: Generate a random 32-character hex string for the token
+    const verificationToken = crypto.randomBytes(32).toString("hex");
 
-    // 3. Create the user in the database
+    // Create the user, but save the token to their profile
     const user = await prisma.user.create({
       data: {
         name,
         email,
         password: hashedPassword,
+        verificationToken, // Save the token here
       },
     });
 
-    // 4. Send the Personalized Welcome Email
+    // NEW: Create the verification link (Make sure NEXTAUTH_URL is in your .env file!)
+    const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+    const verificationLink = `${baseUrl}/api/verify?token=${verificationToken}`;
+
+    // Send the Verification Email
     try {
-      // We extract the name from the email (e.g., "vijay" from "vijay@email.com")
       const userName = email.split("@")[0];
 
       await resend.emails.send({
-        from: "Growth.AI <onboarding@resend.dev>", // Resend's default testing address
-        to: email, // Sends to the person who just registered
-        subject: "Welcome to Growth.AI! 🚀",
+        from: "Growth.AI <onboarding@resend.dev>",
+        to: email,
+        subject: "Verify your email for Growth.AI 🚀",
         html: `
           <div style="font-family: sans-serif; max-w: 600px; margin: 0 auto; padding: 20px;">
             <h1 style="color: #3b82f6;">Welcome to Growth.AI, ${userName}!</h1>
             <p style="color: #333; font-size: 16px; line-height: 1.5;">
-              Your account for <strong>${email}</strong> has been successfully created. We are thrilled to have you on board!
+              Someone recently created an account using this email address. If this was you, please verify your account by clicking the button below.
             </p>
-            <p style="color: #333; font-size: 16px; line-height: 1.5;">
-              You can now head over to your dashboard to start building your custom watchlists, tracking the global markets, and getting personalized AI insights on your favorite companies.
-            </p>
-            <br/>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${verificationLink}" style="background-color: #3b82f6; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+                Yes, it's me - Verify Account
+              </a>
+            </div>
             <p style="color: #666; font-size: 14px;">
-              Happy Investing,<br/>
-              <strong>The Growth.AI Team</strong>
+              If you did not create this account, you can safely ignore this email.
             </p>
           </div>
         `,
       });
     } catch (emailError) {
-      // If the email fails, we log it but don't break the registration process
       console.error("Failed to send welcome email:", emailError);
     }
 
-    return NextResponse.json({ message: "User created" }, { status: 201 });
+    return NextResponse.json({ message: "Please check your email to verify your account." }, { status: 201 });
   } catch (error) {
     console.error("Registration Error:", error);
     return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });

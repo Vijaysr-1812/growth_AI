@@ -15,9 +15,9 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Feel free to update this metadata to match your Nexus.AI brand!
+// Feel free to update this metadata to match your Growth.AI brand!
 export const metadata: Metadata = {
-  title: "Nexus.AI | Financial Intelligence",
+  title: "Growth.AI | Financial Intelligence",
   description: "AI-powered stock analysis and watchlists",
 };
 
