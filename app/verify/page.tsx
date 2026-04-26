@@ -1,7 +1,7 @@
 import React from "react";
 import Link from "next/link";
 import { CheckCircle, XCircle, ArrowRight } from "lucide-react";
-import { prisma } from "../../../lib/prisma";
+import { prisma } from "../../lib/prisma";
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
