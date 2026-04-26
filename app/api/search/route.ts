@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
-import yahooFinance from "yahoo-finance2";
+import YahooFinance from "yahoo-finance2";
 
-// Define exactly what a Yahoo quote looks like to satisfy TypeScript
+const yahooFinance = new YahooFinance();
+
 interface YahooQuote {
-  symbol: string;
+  symbol?: string; 
   shortname?: string;
   longname?: string;
   quoteType?: string;
@@ -20,28 +21,29 @@ export async function GET(req: Request) {
       return NextResponse.json({ results: [] });
     }
 
-    // 1. Fetch raw search results from Yahoo Finance (casting to our custom interface)
+    // Fetch raw search results from Yahoo Finance (Global default)
     const result = (await yahooFinance.search(q, { newsCount: 0 })) as unknown as { quotes: YahooQuote[] };
     let quotes = result.quotes || [];
 
-    // 2. Filter based on the Global Tab selected by the user
+    // Filter based on the Global Tab selected by the user
     if (type === "SIP") {
-      // Only return Mutual Funds
       quotes = quotes.filter((quote: YahooQuote) => quote.quoteType === "MUTUALFUND");
     } else {
-      // Only return Stocks, ETFs, and Indices
       quotes = quotes.filter((quote: YahooQuote) => 
         quote.quoteType === "EQUITY" || 
-        quote.quoteType === "ETF" || 
+        quote.quoteType === "ETF" ||
         quote.quoteType === "INDEX"
       );
     }
 
-    // 3. Map to a clean array for our frontend dropdown
-    const mappedResults = quotes.slice(0, 6).map((quote: YahooQuote) => ({
-      symbol: quote.symbol,
-      name: quote.shortname || quote.longname || quote.symbol,
-    }));
+    // Map to a clean array for our frontend dropdown
+    const mappedResults = quotes
+      .filter((quote) => quote.symbol) 
+      .slice(0, 6)
+      .map((quote: YahooQuote) => ({
+        symbol: quote.symbol as string,
+        name: quote.shortname || quote.longname || quote.symbol,
+      }));
 
     return NextResponse.json({ results: mappedResults });
   } catch (error) {

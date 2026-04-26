@@ -2,32 +2,32 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { prisma } from "../../../lib/prisma";
 
-// GET: Fetch the user's saved tickers
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const session = await getServerSession();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      include: { watchlists: true },
+    const { searchParams } = new URL(req.url);
+    const type = searchParams.get("type") || "Stock";
+
+    const user = await prisma.user.findUnique({ 
+      where: { email: session.user.email } 
     });
 
-    if (!user || user.watchlists.length === 0) {
-      return NextResponse.json({ tickers: [] });
-    }
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    // We'll use the user's first watchlist for now
-    return NextResponse.json({ tickers: user.watchlists[0].tickers });
+    const watchlist = await prisma.watchlist.findFirst({
+      where: { userId: user.id, name: type }
+    });
+
+    return NextResponse.json({ tickers: watchlist?.tickers || [] });
   } catch (error) {
-    console.error("Error fetching watchlist:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }
 
-// POST: Add a new ticker to the watchlist
 export async function POST(req: Request) {
   try {
     const session = await getServerSession();
@@ -35,48 +35,68 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { ticker } = await req.json();
-    if (!ticker) {
-      return NextResponse.json({ error: "Ticker is required" }, { status: 400 });
-    }
+    const { ticker, type = "Stock" } = await req.json();
 
-    const upperTicker = ticker.toUpperCase().trim();
-
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      include: { watchlists: true },
+    const user = await prisma.user.findUnique({ 
+      where: { email: session.user.email } 
     });
 
     if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
-    let watchlist = user.watchlists[0];
+    let watchlist = await prisma.watchlist.findFirst({
+      where: { userId: user.id, name: type }
+    });
 
-    // If the user doesn't have a watchlist yet, create one
     if (!watchlist) {
       watchlist = await prisma.watchlist.create({
-        data: {
-          name: "My Portfolio",
-          tickers: [upperTicker],
-          userId: user.id,
-        },
+        data: { name: type, tickers: [ticker], userId: user.id }
       });
     } else {
-      // If it exists, check if the ticker is already in there to prevent duplicates
-      if (!watchlist.tickers.includes(upperTicker)) {
+      if (!watchlist.tickers.includes(ticker)) {
         watchlist = await prisma.watchlist.update({
           where: { id: watchlist.id },
-          data: {
-            tickers: {
-              push: upperTicker,
-            },
-          },
+          data: { tickers: { push: ticker } }
         });
       }
     }
 
     return NextResponse.json({ tickers: watchlist.tickers });
   } catch (error) {
-    console.error("Error updating watchlist:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const session = await getServerSession();
+    if (!session?.user?.email) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { ticker, type = "Stock" } = await req.json();
+
+    const user = await prisma.user.findUnique({ 
+      where: { email: session.user.email } 
+    });
+
+    if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+
+    const watchlist = await prisma.watchlist.findFirst({
+      where: { userId: user.id, name: type }
+    });
+
+    if (!watchlist) return NextResponse.json({ error: "Watchlist not found" }, { status: 404 });
+
+    // Filter out the ticker they want to remove
+    const updatedTickers = watchlist.tickers.filter(t => t !== ticker);
+
+    const updatedWatchlist = await prisma.watchlist.update({
+      where: { id: watchlist.id },
+      data: { tickers: updatedTickers }
+    });
+
+    return NextResponse.json({ tickers: updatedWatchlist.tickers });
+  } catch (error) {
+    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }
