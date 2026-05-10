@@ -40,21 +40,25 @@ model Session {
 }
 
 model User {
-  id                String    @id @default(cuid())
-  name              String?
-  email             String?   @unique
-  emailVerified     DateTime?
-  image             String?
-  password          String?   // Added for users who sign up with email instead of Google
+  id            String    @id @default(cuid()) 
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime? // Supabase callback or SQL Trigger will set this
+  image         String?
+  password      String?   // Hashed for credentials login
   
-  // NEW: Added for our custom email verification flow
-  verificationToken String?   
+  // REMOVED: verificationToken (Supabase manages this now)
 
-  accounts          Account[]
-  sessions          Session[]
-  watchlists        Watchlist[] // Links the user to their stock watchlists
+  accounts      Account[]
+  sessions      Session[]
+  watchlists    Watchlist[]
+  
+createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt // Add @default(now()) here
 }
 
+// NextAuth's internal table for Email Provider tokens. 
+// You can keep this or remove it since Supabase is handling the verification links.
 model VerificationToken {
   identifier String
   token      String   @unique
@@ -69,8 +73,8 @@ model VerificationToken {
 
 model Watchlist {
   id        String   @id @default(cuid())
-  name      String   // e.g., "Tech Stocks", "Retirement Fund"
-  tickers   String[] // e.g., ["AAPL", "TSLA", "MSFT"]
+  name      String   
+  tickers   String[] 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   
