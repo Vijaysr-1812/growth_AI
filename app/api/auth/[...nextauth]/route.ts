@@ -33,7 +33,32 @@ const handler = NextAuth({
         // NEW: 2. Check if they have verified their email
         // We only enforce this for users who signed up with credentials (password exists)
         if (!user.emailVerified) {
-          throw new Error("Access Denied: Please check your email and verify your account first.");
+          // Fallback: Check Supabase Admin in case PKCE callback failed or was done on another device
+          const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+          const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+          
+          let isVerifiedInSupabase = false;
+          
+          if (supabaseUrl && supabaseKey) {
+            const { createClient } = require('@supabase/supabase-js');
+            const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
+            
+            const { data: authData } = await supabaseAdmin.auth.admin.getUserById(user.id);
+            
+            if (authData?.user?.email_confirmed_at) {
+              isVerifiedInSupabase = true;
+              
+              // Sync our Prisma DB
+              await prisma.user.update({
+                where: { id: user.id },
+                data: { emailVerified: new Date(authData.user.email_confirmed_at) }
+              });
+            }
+          }
+
+          if (!isVerifiedInSupabase) {
+            throw new Error("Access Denied: Please check your email and verify your account first.");
+          }
         }
 
         // 3. Verify password with bcrypt

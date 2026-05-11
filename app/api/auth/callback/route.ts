@@ -34,7 +34,12 @@ export async function GET(request: Request) {
 
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (!error && data?.user?.email) {
+    if (error) {
+      console.error("Supabase verification error:", error);
+      return NextResponse.redirect(`${origin}/login?error=verification_failed`);
+    }
+
+    if (data?.user?.email) {
       await prisma.user.update({
         where: { email: data.user.email },
         data: { emailVerified: new Date() },

@@ -25,6 +25,9 @@ function LoginContent() {
       if (searchParams.get("verified") === "true") {
         setSuccess("Email verified successfully! You can now log in.");
         setIsSignUp(false);
+      } else if (searchParams.get("error") === "verification_failed") {
+        setError("Verification link invalid or expired. However, if you already clicked it, you might be able to log in.");
+        setIsSignUp(false);
       }
     }, 0);
     return () => clearTimeout(timer);
