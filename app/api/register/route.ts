@@ -3,11 +3,7 @@ import { prisma } from "../../../lib/prisma";
 import bcrypt from "bcryptjs";
 import { createClient } from "@supabase/supabase-js";
 
-// Initialize Supabase Admin (needed to bypass RLS for registration if necessary)
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+
 
 export async function POST(req: Request) {
   try {
@@ -16,6 +12,17 @@ export async function POST(req: Request) {
     if (!email || !password) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
+
+    // Initialize Supabase Admin (needed to bypass RLS for registration if necessary)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl || !supabaseKey) {
+      console.error("Missing Supabase environment variables");
+      return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    }
+
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
     // 1. Register the user in Supabase Auth
     // This automatically sends the "Growth AI" verification email you configured
