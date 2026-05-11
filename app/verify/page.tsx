@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Mail, ArrowRight, CheckCircle } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 
-export default function VerifyPage() {
+function VerifyContent() {
   const searchParams = useSearchParams();
   const isSuccess = searchParams.get("success") === "true";
 
@@ -42,5 +42,13 @@ export default function VerifyPage() {
         </Link>
       </div>
     </div>
+  );
+}
+
+export default function VerifyPage() {
+  return (
+    <React.Suspense fallback={<div className="min-h-screen bg-[#050505] flex items-center justify-center text-white">Loading...</div>}>
+      <VerifyContent />
+    </React.Suspense>
   );
 }
