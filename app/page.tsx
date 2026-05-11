@@ -145,7 +145,7 @@ export default function Home() {
             className="text-5xl md:text-7xl lg:text-8xl font-serif leading-[1.1] mb-6"
           >
             Invest with AI.<br />
-            Grow with insight.
+            Grow with <span className="text-blue-400">insight.</span>
           </motion.h1>
           
           <motion.p 
