@@ -26,6 +26,58 @@ export default function Dashboard() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [aiAnalysis, setAiAnalysis] = useState<string>("");
 
+  // Onboarding State
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [onboardingData, setOnboardingData] = useState({ purpose: "", investmentExperience: "", referralSource: "" });
+  const [isSavingOnboarding, setIsSavingOnboarding] = useState(false);
+  const [onboardingError, setOnboardingError] = useState("");
+
+  useEffect(() => {
+    const checkOnboarding = async () => {
+      try {
+        const res = await fetch("/api/profile");
+        if (res.ok) {
+          const data = await res.json();
+          // If they haven't filled out these core fields, show onboarding
+          if (!data.user.purpose || !data.user.investmentExperience || !data.user.referralSource) {
+            setShowOnboarding(true);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch profile for onboarding check", error);
+      }
+    };
+    if (session?.user) {
+      checkOnboarding();
+    }
+  }, [session]);
+
+  const handleSaveOnboarding = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!onboardingData.purpose || !onboardingData.investmentExperience || !onboardingData.referralSource) {
+      setOnboardingError("Please fill out all fields.");
+      return;
+    }
+    setIsSavingOnboarding(true);
+    setOnboardingError("");
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(onboardingData),
+      });
+      if (res.ok) {
+        setShowOnboarding(false);
+      } else {
+        setOnboardingError("Failed to save. Please try again.");
+      }
+    } catch (error) {
+      setOnboardingError("An unexpected error occurred.");
+    } finally {
+      setIsSavingOnboarding(false);
+    }
+  };
+
   useEffect(() => {
     const hasSeenTutorial = localStorage.getItem("nexus_first_login_tour");
     if (!hasSeenTutorial) setTimeout(() => setTourStep(1), 1500); 
@@ -137,6 +189,74 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans flex flex-col relative overflow-x-hidden">
       
+      <AnimatePresence>
+        {showOnboarding && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl pointer-events-auto flex items-center justify-center p-4">
+            <motion.div initial={{ y: 50, scale: 0.95 }} animate={{ y: 0, scale: 1 }} exit={{ y: 50, scale: 0.95 }} className="bg-[#0a0a0a] border border-white/10 shadow-2xl p-8 md:p-10 rounded-3xl max-w-lg w-full relative overflow-hidden">
+              <div className="absolute top-[-20%] right-[-10%] w-[60%] h-[60%] bg-blue-600/10 blur-[80px] rounded-full pointer-events-none" />
+              
+              <h2 className="text-3xl font-serif mb-2 relative z-10">Welcome to <span className="text-blue-500 font-sans tracking-tighter">Growth.AI</span></h2>
+              <p className="text-gray-400 text-sm mb-8 relative z-10">Tell us a bit about your investment journey so our AI can better tailor its financial advice to your needs.</p>
+              
+              {onboardingError && <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-lg text-center relative z-10">{onboardingError}</div>}
+              
+              <form onSubmit={handleSaveOnboarding} className="space-y-5 relative z-10">
+                <div className="space-y-1.5">
+                  <label className="text-xs text-gray-400 uppercase tracking-wider font-medium ml-1">Primary Purpose</label>
+                  <select 
+                    value={onboardingData.purpose} onChange={(e) => setOnboardingData({...onboardingData, purpose: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-blue-500 focus:bg-white/10 transition-all appearance-none"
+                  >
+                    <option value="" className="bg-[#111]">Select a purpose...</option>
+                    <option value="Personal Investing" className="bg-[#111]">Personal Investing</option>
+                    <option value="Corporate Analysis" className="bg-[#111]">Corporate Analysis</option>
+                    <option value="Academic Research" className="bg-[#111]">Academic Research</option>
+                    <option value="Just Exploring" className="bg-[#111]">Just Exploring</option>
+                    <option value="Other" className="bg-[#111]">Other</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-gray-400 uppercase tracking-wider font-medium ml-1">Investment Experience</label>
+                  <select 
+                    value={onboardingData.investmentExperience} onChange={(e) => setOnboardingData({...onboardingData, investmentExperience: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-blue-500 focus:bg-white/10 transition-all appearance-none"
+                  >
+                    <option value="" className="bg-[#111]">Select level...</option>
+                    <option value="Beginner" className="bg-[#111]">Beginner (0-2 years)</option>
+                    <option value="Intermediate" className="bg-[#111]">Intermediate (3-5 years)</option>
+                    <option value="Advanced" className="bg-[#111]">Advanced (5+ years)</option>
+                    <option value="Professional" className="bg-[#111]">Professional / Institutional</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-gray-400 uppercase tracking-wider font-medium ml-1">Referral Source</label>
+                  <select 
+                    value={onboardingData.referralSource} onChange={(e) => setOnboardingData({...onboardingData, referralSource: e.target.value})}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 text-sm focus:outline-none focus:border-blue-500 focus:bg-white/10 transition-all appearance-none"
+                  >
+                    <option value="" className="bg-[#111]">How did you hear about us?</option>
+                    <option value="Search Engine" className="bg-[#111]">Search Engine (Google, etc.)</option>
+                    <option value="Social Media" className="bg-[#111]">Social Media</option>
+                    <option value="Friend/Colleague" className="bg-[#111]">Friend or Colleague</option>
+                    <option value="Blog/Article" className="bg-[#111]">Blog or Article</option>
+                    <option value="Other" className="bg-[#111]">Other</option>
+                  </select>
+                </div>
+
+                <button 
+                  type="submit" disabled={isSavingOnboarding}
+                  className="w-full bg-white text-black font-bold py-3.5 rounded-xl text-sm hover:bg-gray-200 transition-colors mt-4 flex items-center justify-center disabled:opacity-70 shadow-[0_0_20px_rgba(255,255,255,0.1)]"
+                >
+                  {isSavingOnboarding ? <Activity className="w-5 h-5 animate-spin" /> : "Complete Setup"}
+                </button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {tourStep > 0 && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-40 bg-black/80 backdrop-blur-sm pointer-events-auto flex items-end justify-center pb-24">

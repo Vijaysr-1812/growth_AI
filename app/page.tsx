@@ -15,7 +15,7 @@ export default function Home() {
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   return (
-    <div className="min-h-screen bg-black text-white selection:bg-blue-500/30 font-sans overflow-hidden">
+    <div className="min-h-screen bg-black text-white selection:bg-blue-500/30 font-sans overflow-x-hidden">
       
       {/* ========================================
         THE CURTAIN REVEAL EFFECT
@@ -189,6 +189,42 @@ export default function Home() {
           </div>
         </motion.div>
       </div>
+
+      {/* FOOTER SECTION */}
+      <footer className="relative z-10 border-t border-white/10 bg-[#020202] pt-16 pb-8 px-8 md:px-16 mt-20">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-8">
+          <div className="text-center md:text-left">
+            <div className="text-2xl font-bold tracking-tighter mb-2">
+              Growth<span className="text-blue-500">.AI</span>
+            </div>
+            <p className="text-sm text-gray-500 max-w-sm">
+              Empowering your investments with institutional-grade artificial intelligence and real-time sentiment analysis.
+            </p>
+          </div>
+          
+          <div className="flex flex-col items-center md:items-end bg-white/5 border border-white/10 p-6 rounded-2xl max-w-sm w-full text-center md:text-right shadow-2xl">
+            <h4 className="text-base font-medium text-gray-200 mb-2">Help Us Build The Future</h4>
+            <p className="text-xs text-gray-500 mb-4">Your insights directly shape our upcoming features.</p>
+            <a 
+              href="https://forms.gle/bYeXpJKtsiXzBro27" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="w-full justify-center md:w-auto px-6 py-3 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-xl text-sm font-bold transition-all flex items-center hover:shadow-[0_0_20px_rgba(59,130,246,0.3)]"
+            >
+              Send Your Feedback
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </a>
+          </div>
+        </div>
+        
+        <div className="max-w-6xl mx-auto mt-16 pt-8 border-t border-white/5 text-center md:text-left flex flex-col md:flex-row justify-between items-center text-xs text-gray-600">
+          <p>&copy; {new Date().getFullYear()} Growth.AI. All rights reserved.</p>
+          <div className="flex space-x-6 mt-4 md:mt-0">
+            <Link href="/about" className="hover:text-gray-400 transition-colors">Privacy Policy</Link>
+            <Link href="/about" className="hover:text-gray-400 transition-colors">Terms of Service</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
