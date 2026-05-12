@@ -108,6 +108,13 @@ export default function Home() {
                       className="absolute right-0 mt-3 w-48 bg-[#0a0a0a] border border-white/10 rounded-xl shadow-2xl py-2 overflow-hidden z-50"
                     >
                       <Link 
+                        href="/profile"
+                        className="w-full flex items-center px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors border-b border-white/5"
+                      >
+                        <User className="w-4 h-4 mr-2 text-purple-400" /> 
+                        Profile
+                      </Link>
+                      <Link 
                         href="/dashboard"
                         className="w-full flex items-center px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white transition-colors"
                       >
