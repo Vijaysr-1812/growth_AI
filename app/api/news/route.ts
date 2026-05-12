@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
-import { prisma } from "../../../lib/prisma";
 import YahooFinance from "yahoo-finance2";
 
 const yahooFinance = new YahooFinance();
@@ -16,25 +15,22 @@ interface YahooNewsItem {
   [key: string]: unknown; 
 }       
 
-export async function GET() {
+export async function POST(req: Request) {
   try {
     const session = await getServerSession();
     if (!session?.user?.email) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // 1. Get the user's saved tickers to act as their "Interest Profile"
-    const user = await prisma.user.findUnique({
-      where: { email: session.user.email },
-      include: { watchlists: true },
-    });
-
-    let targetTickers = ["SPY", "QQQ"]; // Default to general market ETFs
+    const body = await req.json();
+    let targetTickers: string[] = body.tickers;
     let isPersonalized = false;
 
-    if (user && user.watchlists.length > 0 && user.watchlists[0].tickers.length > 0) {
-      targetTickers = user.watchlists[0].tickers;
+    if (targetTickers && targetTickers.length > 0) {
       isPersonalized = true;
+    } else {
+      // Default to general market ETFs if no tickers provided
+      targetTickers = ["SPY", "QQQ"];
     }
 
     // 2. Fetch news for ALL of their interested tickers in parallel
