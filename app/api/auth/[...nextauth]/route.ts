@@ -77,6 +77,39 @@ export const authOptions: AuthOptions = {
       }
     })
   ],
+  callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === "google") {
+        if (!user.email) {
+          return false;
+        }
+        
+        const dbUser = await prisma.user.findUnique({
+          where: { email: user.email }
+        });
+
+        if (!dbUser) {
+          await prisma.user.create({
+            data: {
+              email: user.email,
+              name: user.name || "Google User",
+              image: user.image || "",
+              emailVerified: new Date(),
+            }
+          });
+        } else if (!dbUser.emailVerified) {
+          await prisma.user.update({
+            where: { email: user.email },
+            data: {
+              emailVerified: new Date(),
+            }
+          });
+        }
+        return true;
+      }
+      return true;
+    }
+  },
   session: {
     strategy: "jwt",
   },

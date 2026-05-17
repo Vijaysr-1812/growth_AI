@@ -104,7 +104,7 @@ function LoginContent() {
 
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="bg-black/50 backdrop-blur-xl border border-white/10 p-8 rounded-2xl shadow-2xl">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-serif mb-2">Welcome to <span className="text-blue-500 font-sans font-bold tracking-tighter">Nexus.AI</span></h1>
+          <h1 className="text-3xl font-serif mb-2">Welcome to <span className="text-blue-500 font-sans font-bold tracking-tighter">Growth AI</span></h1>
           <p className="text-gray-400 text-sm">{isSignUp ? "Create an account to start your analysis." : "Log in to view your watchlists."}</p>
         </div>
 
